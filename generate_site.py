@@ -8,6 +8,21 @@ OUT_DIR = os.path.expanduser('~/workspace/real-estate-round-up-site')
 data = json.load(open(SRC))
 recs = data['listings']
 
+# Demo photos cropped from Issuu page renders (high-confidence pairings only)
+MANIFEST = os.path.expanduser('~/workspace/real-estate-round-up-extraction/photos-demo-manifest.json')
+PHOTO_SRC_DIR = os.path.expanduser('~/workspace/real-estate-round-up-extraction/photos-demo')
+photo_by_mls = {}
+if os.path.exists(MANIFEST):
+    man = json.load(open(MANIFEST))
+    for e in man['entries']:
+        if e.get('confidence') == 'high' and e.get('thumb') and e.get('mls'):
+            photo_by_mls[e['mls']] = e['thumb']
+
+# Records whose card groups sit on the InDesign pasteboard (never printed) — excluded.
+EXCLUDE_MLS = {'128938', '134272', '122649', '133624'}
+EXCLUDE_PHOTO = {'EagleRidgeBG.tif', 'Windmill Ranches.tif'}
+recs = [r for r in recs if r.get('mls') not in EXCLUDE_MLS and r.get('photo') not in EXCLUDE_PHOTO]
+
 def clean(s):
     if not s: return s
     s = s.replace('\u2011', '-').replace('\u00ad', '')
@@ -37,6 +52,7 @@ for r in recs:
         'agent': {'name': clean(agent.get('name')), 'phone': clean(agent.get('phone')), 'email': clean(agent.get('email'))},
         'brokerage': clean(r.get('brokerage')),
         'confidence': r.get('confidence'),
+        'photo': photo_by_mls.get(r.get('mls') or ''),
     })
 
 # sort: status-priority then price desc default handled client-side; keep magazine order (page)
@@ -98,7 +114,9 @@ p.sec-sub{color:#5a665f;margin-bottom:26px;max-width:700px;line-height:1.5}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:18px;margin-top:14px}
 .card{background:#fff;border:1px solid #e6ddcb;border-radius:14px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:transform .12s,box-shadow .12s}
 .card:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(18,53,40,.16)}
+.card .ph{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:var(--sand)}
 .card .band{background:linear-gradient(120deg,var(--pine),var(--forest));color:#fff;padding:16px 18px;position:relative}
+.modal .mph{width:100%;max-height:340px;object-fit:cover;border-radius:10px;margin-bottom:16px;display:block}
 .card .band .price{font-size:25px;font-weight:900}
 .card .band .town{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--brass);font-weight:800;margin-top:2px}
 .badge{position:absolute;top:12px;right:12px;background:var(--rust);color:#fff;font-size:10px;font-weight:800;letter-spacing:.08em;padding:4px 9px;border-radius:999px;text-transform:uppercase}
@@ -155,7 +173,7 @@ footer p{font-size:13px;line-height:1.6;opacity:.85;margin-top:8px;max-width:640
   <p class="sec-sub">Two magazines, one mountain region. The Lincoln County Edition listings are live below; the Otero County Edition joins them as soon as its print files arrive.</p>
   <div class="editions">
     <div class="ed lincoln"><div class="tag">October 2026 · Vol 26 No 10</div><h3>The Real Estate Roundup — Lincoln County Edition</h3>
-      <p>Ruidoso, Alto, Capitan, Carrizozo, Lincoln, Nogal and the Hondo Valley — 358 listings extracted from the October issue.</p>
+      <p>Ruidoso, Alto, Capitan, Carrizozo, Lincoln, Nogal and the Hondo Valley — %%COUNT%% listings extracted from the October issue.</p>
       <a class="btn" href="#listings">Browse the listings</a>
       <a class="btn ghost" href="https://issuu.com/therealestateroundup" target="_blank" rel="noopener">Read the digital edition</a></div>
     <div class="ed otero"><div class="tag">October 2026 · Vol 21 No 10</div><h3>The Real Estate Roundup — Otero County Edition</h3>
@@ -178,7 +196,7 @@ footer p{font-size:13px;line-height:1.6;opacity:.85;margin-top:8px;max-width:640
   <div class="count-line" id="count"></div>
   <div class="grid" id="grid"></div>
   <button class="more" id="more">Show more listings</button>
-  <p class="note">Property details are reproduced from the October 2026 print edition of The Real Estate Roundup. Photos for these listings will appear as they are processed from the print files. To ask about a property, contact its listing agent or brokerage directly — contact details are on each listing.</p>
+  <p class="note">Property details and photos are reproduced from the October 2026 print edition of The Real Estate Roundup. To ask about a property, contact its listing agent or brokerage directly — contact details are on each listing.</p>
 </div></section>
 
 <section id="advertise"><div class="wrap">
@@ -240,7 +258,7 @@ function render(){
   out.slice(0,shown).forEach(l=>{
     const i=LISTINGS.indexOf(l);
     const c=document.createElement('div'); c.className='card'; c.onclick=()=>openModal(i);
-    c.innerHTML=`<div class="band"><div class="price">${money(l.price)}</div><div class="town">${l.town||'Lincoln County'}</div>${l.status?`<span class="${badgeClass(l.status)}">${l.status}</span>`:''}</div>
+    c.innerHTML=`${l.photo?`<img class="ph" loading="lazy" src="photos/${l.photo}" alt="Photo of ${l.address||('listing in '+(l.town||'Lincoln County'))} from the October 2026 print edition">`:''}<div class="band"><div class="price">${money(l.price)}</div><div class="town">${l.town||'Lincoln County'}</div>${l.status?`<span class="${badgeClass(l.status)}">${l.status}</span>`:''}</div>
     <div class="body">${l.address?`<div class="addr">${l.address}</div>`:''}${specs(l)?`<div class="specs">${specs(l)}</div>`:''}<div class="desc">${l.description||''}</div><div class="mls">${l.mls?('MLS #'+l.mls+' · '):''}Page ${l.page||'—'} · October 2026</div></div>`;
     g.appendChild(c);});
   $('#more').style.display = out.length>shown ? 'block':'none';
@@ -248,7 +266,7 @@ function render(){
 function openModal(i){
   const l=LISTINGS[i]; const a=l.agent||{};
   const contact=[a.name?`<div><b>Listing agent:</b> ${a.name}</div>`:'', a.phone?`<div><b>Phone:</b> <a href="tel:${a.phone.replace(/[^0-9+]/g,'')}">${a.phone}</a></div>`:'', a.email?`<div><b>Email:</b> <a href="mailto:${a.email}">${a.email}</a></div>`:'', l.brokerage?`<div><b>Brokerage:</b> ${l.brokerage}</div>`:''].join('');
-  $('#mcontent').innerHTML=`<div class="mprice">${money(l.price)}</div>
+  $('#mcontent').innerHTML=`${l.photo?`<img class="mph" src="photos/${l.photo}" alt="Photo of ${l.address||'this listing'} from the October 2026 print edition">`:''}<div class="mprice">${money(l.price)}</div>
   ${l.address?`<div class="maddr">${l.address}${l.town?(' · '+l.town+', NM'):''}</div>`:(l.town?`<div class="maddr">${l.town}, New Mexico</div>`:'')}
   ${specs(l)?`<div class="mspecs">${specs(l)}</div>`:''}
   <div class="mdesc">${l.description||''}</div>
@@ -269,6 +287,19 @@ render();
 """
 
 html = html.replace('__LISTINGS__', listings_js)
+html = html.replace('%%COUNT%%', str(len(pub)))
+
+# copy high-confidence demo photos into the site tree
+import shutil
+photos_out = os.path.join(OUT_DIR, 'photos')
+os.makedirs(photos_out, exist_ok=True)
+copied = 0
+for thumb in set(photo_by_mls.values()):
+    src = os.path.join(PHOTO_SRC_DIR, thumb)
+    if os.path.exists(src):
+        shutil.copy2(src, os.path.join(photos_out, thumb))
+        copied += 1
+print(f"photos copied: {copied}")
 os.makedirs(OUT_DIR, exist_ok=True)
 with open(os.path.join(OUT_DIR, 'index.html'), 'w') as f:
     f.write(html)
