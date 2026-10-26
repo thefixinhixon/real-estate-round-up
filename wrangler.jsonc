@@ -1,0 +1,12 @@
+{
+  // Cloudflare Workers static-assets config for rerumag.com.
+  // The generated site lives at the repo root; this makes
+  // `npx wrangler deploy` (Cloudflare's Git flow) publish it as-is.
+  "name": "rerumag",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": ".",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}
